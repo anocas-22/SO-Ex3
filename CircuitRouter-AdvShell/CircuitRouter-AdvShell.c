@@ -136,6 +136,7 @@ int main (int argc, char** argv) {
     while (1) {
         int numArgs = 0;
 
+        //Receives input from stdin or fserv
         result = select(maxDescriptor+1, &readset, NULL, NULL, NULL);
 
         if(result == -1)
@@ -154,7 +155,7 @@ int main (int argc, char** argv) {
         } else
           continue;
 
-        /* EOF (end of file) do stdin */
+        /* EOF (end of file) do stdin ou comando "exit"*/
         if (numArgs < 0 || (canExit && numArgs > 0 && (strcmp(args[0], COMMAND_EXIT) == 0))) {
             printf("CircuitRouter-SimpleShell will exit.\n--\n");
 
