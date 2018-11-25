@@ -145,5 +145,18 @@ int main (int argc, char** argv) {
     }
     vector_free(children);
 
+    int fcli;
+    char* pipeName = "Client" + ClientPid + ".pipe";
+    unlink(pipeName);
+
+    //FIXME What should I use for mode? (0666, 0777, etc.)
+    if (mkfifo(pipeName, 0666) < 0)
+      exit(EXIT_FAILURE);
+
+    if ((fcli = open(pipeName, O_WRONLY)) < 0) exit(EXIT_FAILURE);
+
+    write(fcli, "Circuit solved", 15);
+    close(fcli);
+
     return EXIT_SUCCESS;
 }

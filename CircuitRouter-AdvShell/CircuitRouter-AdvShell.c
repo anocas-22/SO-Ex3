@@ -100,8 +100,8 @@ int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, 
 }
 
 int main (int argc, char** argv) {
-    int fserv, result, maxDescriptor;
-    bool_t canExit = FALSE;
+    int fserv, fcli, result, maxDescriptor;
+    bool_t fromStdin = FALSE;
     char *args[MAXARGS + 1];
     char buffer[BUFFER_SIZE];
     int MAXCHILDREN = -1;
@@ -119,10 +119,8 @@ int main (int argc, char** argv) {
     unlink("AdvShell.pipe");
 
     //FIXME What should I use for mode? (0666, 0777, etc.)
-    if (mkfifo("AdvShell.pipe", 0666) < 0) {
-      perror("mkfifo");
+    if (mkfifo("AdvShell.pipe", 0666) < 0)
       exit(EXIT_FAILURE);
-    }
 
     if ((fserv = open("AdvShell.pipe", O_RDONLY)) < 0) exit(EXIT_FAILURE);
 
@@ -134,7 +132,8 @@ int main (int argc, char** argv) {
     maxDescriptor = fileno(stdin) > fserv ? fileno(stdin) : fserv;
 
     while (1) {
-        int numArgs = 0;
+        int numArgs;
+        char* ClientPath;
 
         //Receives input from stdin or fserv
         result = select(maxDescriptor+1, &readset, NULL, NULL, NULL);
@@ -144,11 +143,15 @@ int main (int argc, char** argv) {
         else if(result) {
           if (FD_ISSET(fileno(stdin), &readset)) {
             numArgs = readLineArguments(args, MAXARGS+1, buffer, BUFFER_SIZE);
-            canExit = TRUE;
+            fromStdin = TRUE;
           }
           if (FD_ISSET(fserv, &readset)) {
-            numArgs = readPipeArguments(fserv, args, MAXARGS+1, buffer, BUFFER_SIZE);
-            canExit = FALSE;
+            char* temp[MAXARGS+2];
+            numArgs = readPipeArguments(fserv, temp, MAXARGS+1, buffer, BUFFER_SIZE);
+            ClientPath = temp[0];
+            for (int i = 0; i < MAXARGS + 1; i++)
+              args[i] = temp[i+1];
+            fromStdin = FALSE;
           }
           FD_SET(fileno(stdin), &readset);
           FD_SET(fserv, &readset);
@@ -156,7 +159,7 @@ int main (int argc, char** argv) {
           continue;
 
         /* EOF (end of file) do stdin ou comando "exit"*/
-        if (numArgs < 0 || (canExit && numArgs > 0 && (strcmp(args[0], COMMAND_EXIT) == 0))) {
+        if (numArgs < 0 || (fromStdin && numArgs > 0 && (strcmp(args[0], COMMAND_EXIT) == 0))) {
             printf("CircuitRouter-SimpleShell will exit.\n--\n");
 
             /* Espera pela terminacao de cada filho */
@@ -193,7 +196,7 @@ int main (int argc, char** argv) {
                 continue;
             } else {
                 char seqsolver[] = "../CircuitRouter-SeqSolver/CircuitRouter-SeqSolver";
-                char *newArgs[3] = {seqsolver, args[1], NULL};
+                char *newArgs[4] = {seqsolver, args[1], NULL, ClientPath};
 
                 execv(seqsolver, newArgs);
                 perror("Error while executing child process"); // Nao deveria chegar aqui
@@ -205,8 +208,19 @@ int main (int argc, char** argv) {
             /* Nenhum argumento; ignora e volta a pedir */
             continue;
         }
-        else
+        else {
+          //FIXME What should I use for mode? (0666, 0777, etc.)
+          if (!fromStdin) {
+            if ((fcli = open(ClientPath, O_WRONLY)) < 0) {
+              perror("Failed to open Client pipe");
+              exit(EXIT_FAILURE);
+            }
+            write(fcli, "Command not supported", 22);
+            close(fcli);
+          } else {
             printf("Unknown command. Try again.\n");
+          }
+        }
 
     }
 

@@ -63,6 +63,8 @@
 #include "router.h"
 #include "lib/timer.h"
 #include "lib/types.h"
+#include <sys/types.h>
+#include <sys/stat.h>
 
 enum param_types {
     PARAM_BENDCOST = (unsigned char)'b',
@@ -80,6 +82,7 @@ enum param_defaults {
 
 bool_t global_doPrint = TRUE;
 char* global_inputFile = NULL;
+char* global_ClientPath = NULL;
 long global_params[256]; /* 256 = ascii limit */
 
 
@@ -143,7 +146,8 @@ static void parseArgs (long argc, char* const argv[]){
         displayUsage(argv[0]);
     }
 
-    global_inputFile = argv[optind];
+    global_inputFile = argv[optind++];
+    global_ClientPath = argv[optind];
 }
 
 /* =============================================================================
@@ -238,6 +242,20 @@ int main(int argc, char** argv){
     list_free(pathVectorListPtr);
 
     fclose(resultFp);
+
+    //Tell client the circuit was solved
+    int fcli;
+
+    //FIXME What should I use for mode? (0666, 0777, etc.)
+    if (mkfifo(global_ClientPath, 0666) < 0)
+      exit(EXIT_FAILURE);
+
+    if ((fcli = open(global_ClientPath, O_WRONLY)) < 0) exit(EXIT_FAILURE);
+
+    write(fcli, "Circuit solved", 15);
+    close(fcli);
+
+
     exit(0);
 }
 

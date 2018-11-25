@@ -9,7 +9,7 @@ CFLAGS =-Wall -std=gnu99 -I../
 LDFLAGS=-lm
 TARGET = CircuitRouter-Client
 
-all: $(TARGET) CircuitRouter-SeqSolver
+all: $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(CC) $(CFLAGS) $^ -o $(TARGET) $(LDFLAGS)
@@ -19,10 +19,6 @@ CircuitRouter-Client.o: CircuitRouter-Client.c
 $(OBJS):
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-CircuitRouter-SeqSolver:
-	(cd ../CircuitRouter-SeqSolver/ && make)
-
 clean:
 	@echo Cleaning...
 	rm -f $(OBJS) $(TARGET)
-	(cd ../CircuitRouter-SeqSolver/ && make clean)
