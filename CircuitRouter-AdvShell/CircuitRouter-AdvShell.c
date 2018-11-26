@@ -211,8 +211,10 @@ int main (int argc, char** argv) {
         else {
           //FIXME What should I use for mode? (0666, 0777, etc.)
           if (!fromStdin) {
+            sleep(1);
+            printf("%s\n", ClientPath);
             if ((fcli = open(ClientPath, O_WRONLY)) < 0) {
-              perror("Failed to open Client pipe");
+              perror("Here");
               exit(EXIT_FAILURE);
             }
             write(fcli, "Command not supported", 22);

@@ -34,7 +34,7 @@ int main (int argc, char** argv) {
     write(fserv, buffer, BUFFER_SIZE);
 
     printf("1\n");
-
+    printf("%s\n", pipeName);
     if ((fcli = open(pipeName, O_RDONLY)) < 0) {
       perror("Failed to open Client pipe");
       exit(EXIT_FAILURE);
