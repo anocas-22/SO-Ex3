@@ -100,7 +100,7 @@ int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, 
 }
 
 int main (int argc, char** argv) {
-    int fserv, fcli, result, maxDescriptor;
+    int fserv, /*fcli,*/ result, maxDescriptor;
     bool_t fromStdin = FALSE;
     char *args[MAXARGS + 1];
     char buffer[BUFFER_SIZE];
@@ -122,7 +122,7 @@ int main (int argc, char** argv) {
     if (mkfifo("AdvShell.pipe", 0666) < 0)
       exit(EXIT_FAILURE);
 
-    if ((fserv = open("AdvShell.pipe", O_RDONLY)) < 0) exit(EXIT_FAILURE);
+    if ((fserv = open("AdvShell.pipe", O_RDONLY|O_NONBLOCK)) < 0) exit(EXIT_FAILURE);
 
     fd_set readset;
     FD_ZERO(&readset);

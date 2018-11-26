@@ -255,7 +255,6 @@ int main(int argc, char** argv){
     write(fcli, "Circuit solved", 15);
     close(fcli);
 
-
     exit(0);
 }
 
