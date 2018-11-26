@@ -100,7 +100,7 @@ int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, 
 }
 
 int main (int argc, char** argv) {
-    int fserv, /*fcli,*/ result, maxDescriptor;
+    int fserv, fcli, result, maxDescriptor;
     bool_t fromStdin = FALSE;
     char *args[MAXARGS + 1];
     char buffer[BUFFER_SIZE];
@@ -133,7 +133,7 @@ int main (int argc, char** argv) {
 
     while (1) {
         int numArgs;
-        char* ClientPath;
+        char ClientPath[64];
 
         //Receives input from stdin or fserv
         result = select(maxDescriptor+1, &readset, NULL, NULL, NULL);
@@ -143,14 +143,18 @@ int main (int argc, char** argv) {
         else if(result) {
           if (FD_ISSET(fileno(stdin), &readset)) {
             numArgs = readLineArguments(args, MAXARGS+1, buffer, BUFFER_SIZE);
+            strcpy(ClientPath, "");
             fromStdin = TRUE;
           }
           if (FD_ISSET(fserv, &readset)) {
             char* temp[MAXARGS+2];
-            numArgs = readPipeArguments(fserv, temp, MAXARGS+1, buffer, BUFFER_SIZE);
-            ClientPath = temp[0];
-            for (int i = 0; i < MAXARGS + 1; i++)
-              args[i] = temp[i+1];
+            numArgs = readPipeArguments(fserv, temp, MAXARGS+2, buffer, BUFFER_SIZE);
+            if (--numArgs != 0) {
+              for (int i = 0; i < MAXARGS + 1; i++)
+                args[i] = temp[i+1];
+            }
+            strcpy(ClientPath, "../CircuitRouter-Client/");
+            strcat(ClientPath, temp[0]);
             fromStdin = FALSE;
           }
           FD_SET(fileno(stdin), &readset);
@@ -196,7 +200,7 @@ int main (int argc, char** argv) {
                 continue;
             } else {
                 char seqsolver[] = "../CircuitRouter-SeqSolver/CircuitRouter-SeqSolver";
-                char *newArgs[4] = {seqsolver, args[1], NULL, ClientPath};
+                char *newArgs[4] = {seqsolver, args[1], ClientPath, NULL};
 
                 execv(seqsolver, newArgs);
                 perror("Error while executing child process"); // Nao deveria chegar aqui
@@ -204,17 +208,16 @@ int main (int argc, char** argv) {
             }
         }
 
-        else if (numArgs == 0){
+        //else if (numArgs == 0){
             /* Nenhum argumento; ignora e volta a pedir */
-            continue;
-        }
+        //    continue;
+        //}
         else {
           //FIXME What should I use for mode? (0666, 0777, etc.)
           if (!fromStdin) {
-            sleep(1);
-            printf("%s\n", ClientPath);
             if ((fcli = open(ClientPath, O_WRONLY)) < 0) {
-              perror("Here");
+              printf("%s\n", ClientPath);
+              perror("Failed to open client pipe");
               exit(EXIT_FAILURE);
             }
             write(fcli, "Command not supported", 22);

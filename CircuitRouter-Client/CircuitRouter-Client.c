@@ -9,11 +9,11 @@
 #define BUFFER_SIZE 100
 
 int main (int argc, char** argv) {
-  int fserv/*, fcli*/;
-  char buffer[BUFFER_SIZE];
+  int fserv, fcli;
+  char inputBuffer[BUFFER_SIZE];
+  char outputBuffer[BUFFER_SIZE];
   char* path = argv[1];
   char pipeName[32] = "";
-  char* pid = (char*) malloc(32*sizeof(char));
   sprintf(pipeName, "Client%d.pipe", getpid());
 
   unlink(pipeName);
@@ -21,20 +21,21 @@ int main (int argc, char** argv) {
 
   if ((fserv = open(path, O_WRONLY)) < 0) exit(EXIT_FAILURE);
 
-  if ((fcli = open(pipeName, O_RDONLY|O_NONBLOCK)) < 0) exit(EXIT_FAILURE);
 
   while (1) {
-    fgets(buffer, BUFFER_SIZE, stdin);
+    fgets(outputBuffer, BUFFER_SIZE, stdin);
 
-    char* tmp = strdup(buffer);
-    sprintf(buffer, "%s%s", buffer, pipeName);
-    //strcpy(buffer, pipeName);
-    //strcat(buffer, tmp);
+    char* tmp = strdup(outputBuffer);
+    strcpy(outputBuffer, pipeName);
+    strcat(outputBuffer, " ");
+    strcat(outputBuffer, tmp);
 
-    write(fserv, buffer, BUFFER_SIZE);
+    write(fserv, outputBuffer, BUFFER_SIZE);
 
-    read(fcli, buffer, BUFFER_SIZE);
-    printf("%s\n", buffer);
+    if ((fcli = open(pipeName, O_RDONLY)) < 0) exit(EXIT_FAILURE);
+
+    read(fcli, inputBuffer, BUFFER_SIZE);
+    printf("%s\n", inputBuffer);
   }
 
 

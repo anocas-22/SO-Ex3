@@ -244,17 +244,17 @@ int main(int argc, char** argv){
     fclose(resultFp);
 
     //Tell client the circuit was solved
-    int fcli;
+    if (strcmp(global_ClientPath, "") != 0) {
+      int fcli;
 
-    //FIXME What should I use for mode? (0666, 0777, etc.)
-    if (mkfifo(global_ClientPath, 0666) < 0)
-      exit(EXIT_FAILURE);
+      if ((fcli = open(global_ClientPath, O_WRONLY)) < 0) {
+        perror("Failed to open client pipe");
+        exit(EXIT_FAILURE);
+      }
 
-    if ((fcli = open(global_ClientPath, O_WRONLY)) < 0) exit(EXIT_FAILURE);
-
-    write(fcli, "Circuit solved", 15);
-    close(fcli);
-
+      write(fcli, "Circuit solved", 15);
+      close(fcli);
+    }
     exit(0);
 }
 

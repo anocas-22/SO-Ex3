@@ -5,14 +5,14 @@ SOURCES = router.c maze.c grid.c coordinate.c CircuitRouter-SeqSolver.c
 SOURCES+= ../lib/vector.c ../lib/queue.c ../lib/list.c ../lib/pair.c
 OBJS = $(SOURCES:%.c=%.o)
 CC   = gcc
-CFLAGS =-Wall -std=gnu99 -I../
+CFLAGS =-Wall -std=gnu99 -I../ -g
 LDFLAGS=-lm
 TARGET = CircuitRouter-SeqSolver
 
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CC) $(CFLAGS) $^ -o $(TARGET) $(LDFLAGS) 
+	$(CC) $(CFLAGS) $^ -o $(TARGET) $(LDFLAGS)
 
 CircuitRouter-SeqSolver.o: CircuitRouter-SeqSolver.c maze.h router.h ../lib/list.h ../lib/timer.h ../lib/types.h
 router.o: router.c router.h coordinate.h grid.h ../lib/queue.h ../lib/vector.h
@@ -30,5 +30,3 @@ $(OBJS):
 clean:
 	@echo Cleaning...
 	rm -f $(OBJS) $(TARGET)
-
-
