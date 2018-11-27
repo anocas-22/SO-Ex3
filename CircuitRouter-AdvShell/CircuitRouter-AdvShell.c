@@ -6,6 +6,7 @@
 
 #include "lib/commandlinereader.h"
 #include "lib/vector.h"
+#include "lib/timer.h"
 #include "CircuitRouter-AdvShell.h"
 #include <stdio.h>
 #include <sys/types.h>
@@ -19,24 +20,21 @@
 #include <unistd.h>
 #include <errno.h>
 
-//FIXME delete COMMAND_EXIT
 #define COMMAND_EXIT "exit"
 #define COMMAND_RUN "run"
 
 #define MAXARGS 3
 #define BUFFER_SIZE 100
 
-void waitForChild(vector_t *children) {
+vector_t *children;
+
+void waitForChild() {
     while (1) {
-        //REMOVE
-        /*child_t *child = malloc(sizeof(child_t));
-        if (child == NULL) {
-            perror("Error allocating memory");
-            exit(EXIT_FAILURE);
-        }*/
         int pid, status;
         pid = wait(&status);
-        //FIXME look for child with pid and add status and read times from pipe
+        child_t* child;
+        child = findChild(pid);
+        child->status = status;
         if (child->pid < 0) {
             if (errno == EINTR) {
                 /* Este codigo de erro significa que chegou signal que interrompeu a espera
@@ -52,18 +50,18 @@ void waitForChild(vector_t *children) {
     }
 }
 
-//FIXME print execution time
-void printChildren(vector_t *children) {
+void printChildren() {
     for (int i = 0; i < vector_getSize(children); ++i) {
         child_t *child = vector_at(children, i);
         int status = child->status;
         pid_t pid = child->pid;
+        double duration = TIMER_DIFF_SECONDS(child->startTime, child->stopTime);
         if (pid != -1) {
             const char* ret = "NOK";
             if (WIFEXITED(status) && WEXITSTATUS(status) == 0) {
                 ret = "OK";
             }
-            printf("CHILD EXITED: (PID=%d; return %s)\n", pid, ret);
+            printf("CHILD EXITED: (PID=%d; return %s; %f s)\n", pid, ret, duration);
         }
     }
     puts("END.");
@@ -102,16 +100,29 @@ int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, 
   return numTokens;
 }
 
-void handleChildTime(int sig, siginfo_t *si; void *context) {
-  int ftime;
-  char stringTime[32];
-  TIMER_T timeString;
+child_t* findChild(int pid) {
+  for (int i = 0; i < vector_getSize(children); i++) {
+    child_t* child = vector_at(children, i);
+    if (child->pid == pid)
+      return child;
+  }
+  return NULL;
+}
+
+void handleChildTime(int sig, siginfo_t *si, void *context) {
+  TIMER_T stopTime;
   TIMER_READ(stopTime);
-  sprintf(timeString, "%d %d", si->si_pid, stopTime);
-  //FIXME
-  if ((ftime = open("AdvShell.pipe", O_WRONLY|O_NONBLOCK)) < 0) exit(EXIT_FAILURE);
-  if(si->si_code == CLD_EXITED || si->si_code == CLD_KILLED)
-    write(ftime, timeString, strlen(timeString));
+  child_t* child = findChild(si->si_pid);
+
+
+  if (child != NULL)
+    if(si->si_code == CLD_EXITED || si->si_code == CLD_KILLED)
+      child->stopTime = stopTime;
+
+  struct sigaction options;
+  options.sa_flags = SA_SIGINFO;
+  options.sa_sigaction = handleChildTime;
+  sigaction(SIGCHLD, &options, NULL);
 }
 
 int main (int argc, char** argv) {
@@ -120,7 +131,6 @@ int main (int argc, char** argv) {
     char *args[MAXARGS + 1];
     char buffer[BUFFER_SIZE];
     int MAXCHILDREN = -1;
-    vector_t *children;
     int runningChildren = 0;
 
     if(argv[1] != NULL){
@@ -132,9 +142,6 @@ int main (int argc, char** argv) {
     printf("Welcome to CircuitRouter-SimpleShell\n\n");
 
     unlink("AdvShell.pipe");
-
-    if (mkfifo("Time.pipe", 0666) < 0)
-      exit(EXIT_FAILURE);
 
     if (mkfifo("AdvShell.pipe", 0666) < 0)
       exit(EXIT_FAILURE);
@@ -155,8 +162,10 @@ int main (int argc, char** argv) {
         //Receives input from stdin or fserv
         result = select(maxDescriptor+1, &readset, NULL, NULL, NULL);
 
-        if(result == -1)
-            perror("select()");
+        if(result == -1) {
+            perror("Select failed");
+            continue;
+        }
         else if(result) {
           if (FD_ISSET(fileno(stdin), &readset)) {
             numArgs = readLineArguments(args, MAXARGS+1, buffer, BUFFER_SIZE);
@@ -185,11 +194,11 @@ int main (int argc, char** argv) {
 
             /* Espera pela terminacao de cada filho */
             while (runningChildren > 0) {
-                waitForChild(children);
+                waitForChild();
                 runningChildren --;
             }
 
-            printChildren(children);
+            printChildren();
             printf("--\nCircuitRouter-SimpleShell ended.\n");
             break;
         }
@@ -201,7 +210,7 @@ int main (int argc, char** argv) {
                 continue;
             }
             if (MAXCHILDREN != -1 && runningChildren >= MAXCHILDREN) {
-                waitForChild(children);
+                waitForChild();
                 runningChildren--;
             }
 
@@ -249,7 +258,6 @@ int main (int argc, char** argv) {
             continue;
         }
         else {
-          //FIXME What should I use for mode? (0666, 0777, etc.)
           if (!fromStdin) {
             if ((fcli = open(ClientPath, O_WRONLY)) < 0) {
               printf("%s\n", ClientPath);

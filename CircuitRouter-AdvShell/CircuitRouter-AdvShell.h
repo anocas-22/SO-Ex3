@@ -3,6 +3,7 @@
 
 #include "lib/vector.h"
 #include <sys/types.h>
+#include <signal.h>
 
 typedef struct {
     pid_t pid;
@@ -11,8 +12,10 @@ typedef struct {
     TIMER_T stopTime;
 } child_t;
 
-void waitForChild(vector_t *children);
-void printChildren(vector_t *children);
+void waitForChild();
+void printChildren();
 int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, int bufferSize);
+child_t* findChild(int pid);
+void handleChildTime(int sig, siginfo_t *si, void *context);
 
 #endif /* CIRCUITROUTER_SHELL_H */
