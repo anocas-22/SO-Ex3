@@ -265,17 +265,6 @@ int main (int argc, char** argv) {
                 exit(EXIT_FAILURE);
             }
         }
-
-        //TEST
-        else if (numArgs == 0){
-            /* Nenhum argumento; ignora e volta a pedir */
-            if (!fromStdin) {
-              messageClient(ClientPath, "Command not supported");
-            } else {
-              printf("Unknown command. Try again.\n");
-            }
-            continue;
-        }
         else {
           if (!fromStdin) {
             messageClient(ClientPath, "Command not supported");
