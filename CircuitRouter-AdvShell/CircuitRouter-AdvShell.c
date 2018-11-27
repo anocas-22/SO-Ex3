@@ -79,7 +79,6 @@ int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, 
      return 0;
 
   if (read(pipe, buffer, bufferSize) < 0) {
-    perror("Failed to read from AdvShell pipe");
     return -1;
   }
 
@@ -115,6 +114,7 @@ void handleChildTime(int sig, siginfo_t *si, void *context) {
   TIMER_READ(stopTime);
   child_t* child = findChild(si->si_pid);
 
+
   if (child != NULL)
     if(si->si_code == CLD_EXITED || si->si_code == CLD_KILLED)
       child->stopTime = stopTime;
@@ -122,13 +122,21 @@ void handleChildTime(int sig, siginfo_t *si, void *context) {
   struct sigaction options;
   options.sa_flags = SA_SIGINFO;
   options.sa_sigaction = handleChildTime;
-  if (sigaction(SIGCHLD, &options, NULL) == -1) {
-    perror("Sigaction failed");
+  sigaction(SIGCHLD, &options, NULL);
+}
+
+void messageClient(char* pipeName, char* message) {
+  int fcli;
+  if ((fcli = open(pipeName, O_WRONLY)) < 0) {
+    perror("Failed to open client pipe");
+    exit(EXIT_FAILURE);
   }
+  write(fcli, message, 22);
+  close(fcli);
 }
 
 int main (int argc, char** argv) {
-    int fserv, fcli, result, maxDescriptor;
+    int fserv, result, maxDescriptor;
     bool_t fromStdin = FALSE;
     char *args[MAXARGS + 1];
     char buffer[BUFFER_SIZE];
@@ -145,15 +153,10 @@ int main (int argc, char** argv) {
 
     unlink("AdvShell.pipe");
 
-    if (mkfifo("AdvShell.pipe", 0666) < 0) {
-      perror("Error making AdvShell pipe");
+    if (mkfifo("AdvShell.pipe", 0666) < 0)
       exit(EXIT_FAILURE);
-    }
 
-    if ((fserv = open("AdvShell.pipe", O_RDONLY|O_NONBLOCK)) < 0) {
-      perror("Failed to open AdvShell pipe");
-      exit(EXIT_FAILURE);
-    }
+    if ((fserv = open("AdvShell.pipe", O_RDONLY|O_NONBLOCK)) < 0) exit(EXIT_FAILURE);
 
     fd_set readset;
     FD_ZERO(&readset);
@@ -197,7 +200,7 @@ int main (int argc, char** argv) {
 
         /* EOF (end of file) do stdin ou comando "exit"*/
         if (numArgs < 0 || (fromStdin && numArgs > 0 && (strcmp(args[0], COMMAND_EXIT) == 0))) {
-            printf("CircuitRouter-AdvShell will exit.\n--\n");
+            printf("CircuitRouter-SimpleShell will exit.\n--\n");
 
             /* Espera pela terminacao de cada filho */
             while (runningChildren > 0) {
@@ -206,14 +209,18 @@ int main (int argc, char** argv) {
             }
 
             printChildren();
-            printf("--\nCircuitRouter-AdvShell ended.\n");
+            printf("--\nCircuitRouter-SimpleShell ended.\n");
             break;
         }
 
         else if (numArgs > 0 && strcmp(args[0], COMMAND_RUN) == 0){
             int pid;
             if (numArgs < 2) {
-                printf("%s: invalid syntax. Try again.\n", COMMAND_RUN);
+                if (!fromStdin) {
+                  messageClient(ClientPath, "Command not supported");
+                } else {
+                  printf("%s: invalid syntax. Try again.\n", COMMAND_RUN);
+                }
                 continue;
             }
             if (MAXCHILDREN != -1 && runningChildren >= MAXCHILDREN) {
@@ -221,12 +228,11 @@ int main (int argc, char** argv) {
                 runningChildren--;
             }
 
+            //FIXME add error and comment
             struct sigaction options;
             options.sa_flags = SA_SIGINFO;
             options.sa_sigaction = handleChildTime;
-            if (sigaction(SIGCHLD, &options, NULL) == -1) {
-              perror("Sigaction failed");
-            }
+            sigaction(SIGCHLD, &options, NULL);
 
             pid = fork();
             if (pid < 0) {
@@ -255,20 +261,13 @@ int main (int argc, char** argv) {
                 char *newArgs[4] = {seqsolver, args[1], ClientPath, NULL};
 
                 execv(seqsolver, newArgs);
-                perror("Error while executing child process");
+                perror("Error while executing child process"); // Nao deveria chegar aqui
                 exit(EXIT_FAILURE);
             }
         }
-
         else {
           if (!fromStdin) {
-            if ((fcli = open(ClientPath, O_WRONLY)) < 0) {
-              printf("%s\n", ClientPath);
-              perror("Failed to open client pipe");
-              exit(EXIT_FAILURE);
-            }
-            write(fcli, "Command not supported", 22);
-            close(fcli);
+            messageClient(ClientPath, "Command not supported");
           } else {
             printf("Unknown command. Try again.\n");
           }
