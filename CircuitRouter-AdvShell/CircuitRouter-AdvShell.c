@@ -260,11 +260,6 @@ int main (int argc, char** argv) {
             }
         }
 
-        //TEST
-        else if (numArgs == 0){
-            /* Nenhum argumento; ignora e volta a pedir */
-            continue;
-        }
         else {
           if (!fromStdin) {
             if ((fcli = open(ClientPath, O_WRONLY)) < 0) {
