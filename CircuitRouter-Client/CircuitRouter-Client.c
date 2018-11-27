@@ -17,10 +17,15 @@ int main (int argc, char** argv) {
   sprintf(pipeName, "Client%d.pipe", getpid());
 
   unlink(pipeName);
-  if (mkfifo(pipeName, 0666) < 0) exit(EXIT_FAILURE);
+  if (mkfifo(pipeName, 0666) < 0) {
+    perror ("Error making client pipe");
+    exit(EXIT_FAILURE);
+  }
 
-  if ((fserv = open(path, O_WRONLY)) < 0) exit(EXIT_FAILURE);
-
+  if ((fserv = open(path, O_WRONLY)) < 0) {
+    perror("Failed to open AdvShell pipe");
+    exit(EXIT_FAILURE);
+  }
 
   while (1) {
     fgets(outputBuffer, BUFFER_SIZE, stdin);
@@ -30,11 +35,18 @@ int main (int argc, char** argv) {
     strcat(outputBuffer, " ");
     strcat(outputBuffer, tmp);
 
-    write(fserv, outputBuffer, BUFFER_SIZE);
+    if (write(fserv, outputBuffer, BUFFER_SIZE) < 0) {
+      perror("Failed to write in AdvShell pipe");
+    }
 
-    if ((fcli = open(pipeName, O_RDONLY)) < 0) exit(EXIT_FAILURE);
+    if ((fcli = open(pipeName, O_RDONLY)) < 0) {
+      perror("Failed to open client pipe");
+      exit(EXIT_FAILURE);
+    }
 
-    read(fcli, inputBuffer, BUFFER_SIZE);
+    if (read(fcli, inputBuffer, BUFFER_SIZE) < 0) {
+      perror("Failed to read from client pipe");
+    }
     printf("%s\n", inputBuffer);
   }
 
