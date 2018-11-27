@@ -28,12 +28,15 @@
 
 void waitForChild(vector_t *children) {
     while (1) {
-        child_t *child = malloc(sizeof(child_t));
+        //REMOVE
+        /*child_t *child = malloc(sizeof(child_t));
         if (child == NULL) {
             perror("Error allocating memory");
             exit(EXIT_FAILURE);
-        }
-        child->pid = wait(&(child->status));
+        }*/
+        int pid, status;
+        pid = wait(&status);
+        //FIXME look for child with pid and add status and read times from pipe
         if (child->pid < 0) {
             if (errno == EINTR) {
                 /* Este codigo de erro significa que chegou signal que interrompeu a espera
@@ -45,11 +48,11 @@ void waitForChild(vector_t *children) {
                 exit (EXIT_FAILURE);
             }
         }
-        vector_pushBack(children, child);
         return;
     }
 }
 
+//FIXME print execution time
 void printChildren(vector_t *children) {
     for (int i = 0; i < vector_getSize(children); ++i) {
         child_t *child = vector_at(children, i);
@@ -99,6 +102,18 @@ int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, 
   return numTokens;
 }
 
+void handleChildTime(int sig, siginfo_t *si; void *context) {
+  int ftime;
+  char stringTime[32];
+  TIMER_T timeString;
+  TIMER_READ(stopTime);
+  sprintf(timeString, "%d %d", si->si_pid, stopTime);
+  //FIXME
+  if ((ftime = open("AdvShell.pipe", O_WRONLY|O_NONBLOCK)) < 0) exit(EXIT_FAILURE);
+  if(si->si_code == CLD_EXITED || si->si_code == CLD_KILLED)
+    write(ftime, timeString, strlen(timeString));
+}
+
 int main (int argc, char** argv) {
     int fserv, fcli, result, maxDescriptor;
     bool_t fromStdin = FALSE;
@@ -118,7 +133,9 @@ int main (int argc, char** argv) {
 
     unlink("AdvShell.pipe");
 
-    //FIXME What should I use for mode? (0666, 0777, etc.)
+    if (mkfifo("Time.pipe", 0666) < 0)
+      exit(EXIT_FAILURE);
+
     if (mkfifo("AdvShell.pipe", 0666) < 0)
       exit(EXIT_FAILURE);
 
@@ -188,6 +205,12 @@ int main (int argc, char** argv) {
                 runningChildren--;
             }
 
+            //FIXME add error and comment
+            struct sigaction options;
+            options.sa_flags = SA_SIGINFO;
+            options.sa_sigaction = handleChildTime;
+            sigaction(SIGCHLD, &options, NULL);
+
             pid = fork();
             if (pid < 0) {
                 perror("Failed to create new process.");
@@ -195,6 +218,18 @@ int main (int argc, char** argv) {
             }
 
             if (pid > 0) {
+                //start time and add child to vector children
+                TIMER_T startTime;
+                TIMER_READ(startTime);
+                child_t *child = malloc(sizeof(child_t));
+                if (child == NULL) {
+                    perror("Error allocating memory");
+                    exit(EXIT_FAILURE);
+                }
+                child->pid = pid;
+                child->startTime = startTime;
+                vector_pushBack(children, child);
+
                 runningChildren++;
                 printf("%s: background child started with PID %d.\n\n", COMMAND_RUN, pid);
                 continue;
@@ -208,10 +243,11 @@ int main (int argc, char** argv) {
             }
         }
 
-        //else if (numArgs == 0){
+        //TEST
+        else if (numArgs == 0){
             /* Nenhum argumento; ignora e volta a pedir */
-        //    continue;
-        //}
+            continue;
+        }
         else {
           //FIXME What should I use for mode? (0666, 0777, etc.)
           if (!fromStdin) {

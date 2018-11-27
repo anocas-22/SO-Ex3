@@ -7,6 +7,8 @@
 typedef struct {
     pid_t pid;
     int status;
+    TIMER_T startTime;
+    TIMER_T stopTime;
 } child_t;
 
 void waitForChild(vector_t *children);
