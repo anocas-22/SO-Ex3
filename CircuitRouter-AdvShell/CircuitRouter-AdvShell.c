@@ -125,8 +125,18 @@ void handleChildTime(int sig, siginfo_t *si, void *context) {
   sigaction(SIGCHLD, &options, NULL);
 }
 
+void messageClient(char* pipeName, char* message) {
+  int fcli;
+  if ((fcli = open(pipeName, O_WRONLY)) < 0) {
+    perror("Failed to open client pipe");
+    exit(EXIT_FAILURE);
+  }
+  write(fcli, message, 22);
+  close(fcli);
+}
+
 int main (int argc, char** argv) {
-    int fserv, fcli, result, maxDescriptor;
+    int fserv, result, maxDescriptor;
     bool_t fromStdin = FALSE;
     char *args[MAXARGS + 1];
     char buffer[BUFFER_SIZE];
@@ -206,7 +216,11 @@ int main (int argc, char** argv) {
         else if (numArgs > 0 && strcmp(args[0], COMMAND_RUN) == 0){
             int pid;
             if (numArgs < 2) {
-                printf("%s: invalid syntax. Try again.\n", COMMAND_RUN);
+                if (!fromStdin) {
+                  messageClient(ClientPath, "Command not supported");
+                } else {
+                  printf("%s: invalid syntax. Try again.\n", COMMAND_RUN);
+                }
                 continue;
             }
             if (MAXCHILDREN != -1 && runningChildren >= MAXCHILDREN) {
@@ -255,17 +269,16 @@ int main (int argc, char** argv) {
         //TEST
         else if (numArgs == 0){
             /* Nenhum argumento; ignora e volta a pedir */
+            if (!fromStdin) {
+              messageClient(ClientPath, "Command not supported");
+            } else {
+              printf("Unknown command. Try again.\n");
+            }
             continue;
         }
         else {
           if (!fromStdin) {
-            if ((fcli = open(ClientPath, O_WRONLY)) < 0) {
-              printf("%s\n", ClientPath);
-              perror("Failed to open client pipe");
-              exit(EXIT_FAILURE);
-            }
-            write(fcli, "Command not supported", 22);
-            close(fcli);
+            messageClient(ClientPath, "Command not supported");
           } else {
             printf("Unknown command. Try again.\n");
           }

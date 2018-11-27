@@ -17,5 +17,6 @@ void printChildren();
 int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, int bufferSize);
 child_t* findChild(int pid);
 void handleChildTime(int sig, siginfo_t *si, void *context);
+void messageClient(char* pipeName, char* message);
 
 #endif /* CIRCUITROUTER_SHELL_H */
