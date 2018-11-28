@@ -38,8 +38,8 @@ void waitForChild() {
         child->status = status;
         if (child->pid < 0) {
             if (errno == EINTR) {
-                /* Este codigo de erro significa que chegou signal que interrompeu a espera
-                   pela terminacao de filho; logo voltamos a esperar */
+                /* This error means that the signal was received and interrupted
+                the waiting for the child end, so we wait again*/
                 free(child);
                 continue;
             } else {
@@ -71,9 +71,7 @@ void printChildren() {
 int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, int bufferSize) {
   int numTokens = 0;
   char *s = " \r\n\t";
-
   int i;
-
   char *token;
 
   if (argVector == NULL || buffer == NULL || vectorSize <= 0 || bufferSize <= 0)
@@ -116,7 +114,6 @@ void handleChildTime(int sig, siginfo_t *si, void *context) {
   TIMER_READ(stopTime);
   child_t* child = findChild(si->si_pid);
 
-
   if (child != NULL)
     if(si->si_code == CLD_EXITED || si->si_code == CLD_KILLED)
       child->stopTime = stopTime;
@@ -130,7 +127,9 @@ void messageClient(char* pipeName, char* message) {
     perror("Failed to open client pipe");
     exit(EXIT_FAILURE);
   }
-  write(fcli, message, 22);
+  if (write(fcli, message, 22) < 0) {
+    perror("Failed to write in client pipe");
+  }
   close(fcli);
 }
 
@@ -172,7 +171,7 @@ int main (int argc, char** argv) {
     int MAXCHILDREN = -1;
     int runningChildren = 0;
 
-    if(argv[1] != NULL){
+    if (argv[1] != NULL){
         MAXCHILDREN = atoi(argv[1]);
     }
 
@@ -190,6 +189,8 @@ int main (int argc, char** argv) {
 
     maxDescriptor = fileno(stdin) > fserv ? fileno(stdin) : fserv;
 
+    signalChildEnd();
+    
     while (1) {
         int numArgs;
         char ClientPath[64];
@@ -223,11 +224,11 @@ int main (int argc, char** argv) {
         } else
           continue;
 
-        /* EOF (end of file) do stdin ou comando "exit"*/
+        /* EOF (end of file) of stdin or command "exit"*/
         if (numArgs < 0 || (fromStdin && numArgs > 0 && (strcmp(args[0], COMMAND_EXIT) == 0))) {
             printf("CircuitRouter-AdvShell will exit.\n--\n");
 
-            /* Espera pela terminacao de cada filho */
+            /* waits for all the children to end */
             while (runningChildren > 0) {
                 waitForChild();
                 runningChildren --;
@@ -253,7 +254,6 @@ int main (int argc, char** argv) {
                 runningChildren--;
             }
 
-            signalChildEnd();
 
             pid = fork();
             if (pid < 0) {
@@ -277,16 +277,16 @@ int main (int argc, char** argv) {
                 runningChildren++;
                 printf("%s: background child started with PID %d.\n\n", COMMAND_RUN, pid);
                 continue;
+
             } else {
                 char seqsolver[] = "../CircuitRouter-SeqSolver/CircuitRouter-SeqSolver";
                 char *newArgs[4] = {seqsolver, args[1], ClientPath, NULL};
 
                 execv(seqsolver, newArgs);
-                perror("Error while executing child process"); // Nao deveria chegar aqui
+                perror("Error while executing child process"); // Shouldn't get here
                 exit(EXIT_FAILURE);
             }
-        }
-        else {
+        } else {
           if (!fromStdin) {
             messageClient(ClientPath, "Command not supported");
           } else {
