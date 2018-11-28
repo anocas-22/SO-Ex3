@@ -33,13 +33,10 @@ void waitForChild() {
     while (1) {
         int pid, status;
         pid = wait(&status);
-        child_t* child;
-        child = findChild(pid);
-        child->status = status;
-        if (child->pid < 0) {
+        if (pid < 0) {
             if (errno == EINTR) {
                 /* This error means that the signal was received and interrupted
-                the waiting for the child end, so we wait again*/
+                the wait for the end of the child process, so we wait again*/
                 free(child);
                 continue;
             } else {
@@ -47,6 +44,9 @@ void waitForChild() {
                 exit (EXIT_FAILURE);
             }
         }
+        child_t* child;
+        child = findChild(pid);
+        child->status = status;
         return;
     }
 }
@@ -228,7 +228,7 @@ int main (int argc, char** argv) {
         if (numArgs < 0 || (fromStdin && numArgs > 0 && (strcmp(args[0], COMMAND_EXIT) == 0))) {
             printf("CircuitRouter-AdvShell will exit.\n--\n");
 
-            /* waits for all the children to end */
+            /* Waits for all children to end */
             while (runningChildren > 0) {
                 waitForChild();
                 runningChildren --;
