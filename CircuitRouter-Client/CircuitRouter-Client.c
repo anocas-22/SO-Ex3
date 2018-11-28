@@ -23,7 +23,7 @@ int main (int argc, char** argv) {
   }
 
   if ((fserv = open(path, O_WRONLY)) < 0) {
-    perror("Failed to open AdvShell pipe");
+    perror("Failed to open server pipe");
     exit(EXIT_FAILURE);
   }
 
@@ -36,7 +36,7 @@ int main (int argc, char** argv) {
     strcat(outputBuffer, tmp);
 
     if (write(fserv, outputBuffer, BUFFER_SIZE) < 0) {
-      perror("Failed to write in AdvShell pipe");
+      perror("Failed to write in server pipe");
     }
 
     if ((fcli = open(pipeName, O_RDONLY)) < 0) {
