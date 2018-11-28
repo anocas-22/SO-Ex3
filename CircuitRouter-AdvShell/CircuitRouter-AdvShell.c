@@ -22,6 +22,7 @@
 
 #define COMMAND_EXIT "exit"
 #define COMMAND_RUN "run"
+#define PIPENAME "AdvShell.pipe"
 
 #define MAXARGS 3
 #define BUFFER_SIZE 100
@@ -79,6 +80,7 @@ int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, 
      return 0;
 
   if (read(pipe, buffer, bufferSize) < 0) {
+    perror("Failed to read from server pipe");
     return -1;
   }
 
@@ -119,10 +121,7 @@ void handleChildTime(int sig, siginfo_t *si, void *context) {
     if(si->si_code == CLD_EXITED || si->si_code == CLD_KILLED)
       child->stopTime = stopTime;
 
-  struct sigaction options;
-  options.sa_flags = SA_SIGINFO;
-  options.sa_sigaction = handleChildTime;
-  sigaction(SIGCHLD, &options, NULL);
+  signalChildEnd();
 }
 
 void messageClient(char* pipeName, char* message) {
@@ -133,6 +132,36 @@ void messageClient(char* pipeName, char* message) {
   }
   write(fcli, message, 22);
   close(fcli);
+}
+
+void signalChildEnd() {
+  struct sigaction options;
+  options.sa_flags = SA_SIGINFO;
+  options.sa_sigaction = handleChildTime;
+  if (sigaction(SIGCHLD, &options, NULL) == -1) {
+    perror("Sigaction failed");
+  }
+}
+
+int openPipe(char* pipeName) {
+  int p;
+  unlink(pipeName);
+
+  if (mkfifo(pipeName, 0666) < 0) {
+    perror("Error making server pipe");
+    exit(EXIT_FAILURE);
+  }
+
+  if ((p = open(pipeName, O_RDONLY|O_NONBLOCK)) < 0) {
+    perror("Failed to open server pipe");
+    exit(EXIT_FAILURE);
+  }
+  return p;
+}
+
+void closePipe(int p, char* pipeName) {
+  close(p);
+  unlink(pipeName);
 }
 
 int main (int argc, char** argv) {
@@ -149,15 +178,11 @@ int main (int argc, char** argv) {
 
     children = vector_alloc(MAXCHILDREN);
 
-    printf("Welcome to CircuitRouter-SimpleShell\n\n");
+    printf("Welcome to CircuitRouter-AdvShell\n\n");
 
-    unlink("AdvShell.pipe");
+    fserv = openPipe(PIPENAME);
 
-    if (mkfifo("AdvShell.pipe", 0666) < 0)
-      exit(EXIT_FAILURE);
-
-    if ((fserv = open("AdvShell.pipe", O_RDONLY|O_NONBLOCK)) < 0) exit(EXIT_FAILURE);
-
+    //Sets up reading from select()
     fd_set readset;
     FD_ZERO(&readset);
     FD_SET(fileno(stdin), &readset);
@@ -169,7 +194,7 @@ int main (int argc, char** argv) {
         int numArgs;
         char ClientPath[64];
 
-        //Receives input from stdin or fserv
+        //Receives input from stdin or fserv with select()
         result = select(maxDescriptor+1, &readset, NULL, NULL, NULL);
 
         if(result == -1) {
@@ -200,7 +225,7 @@ int main (int argc, char** argv) {
 
         /* EOF (end of file) do stdin ou comando "exit"*/
         if (numArgs < 0 || (fromStdin && numArgs > 0 && (strcmp(args[0], COMMAND_EXIT) == 0))) {
-            printf("CircuitRouter-SimpleShell will exit.\n--\n");
+            printf("CircuitRouter-AdvShell will exit.\n--\n");
 
             /* Espera pela terminacao de cada filho */
             while (runningChildren > 0) {
@@ -209,7 +234,7 @@ int main (int argc, char** argv) {
             }
 
             printChildren();
-            printf("--\nCircuitRouter-SimpleShell ended.\n");
+            printf("--\nCircuitRouter-AdvShell ended.\n");
             break;
         }
 
@@ -228,11 +253,7 @@ int main (int argc, char** argv) {
                 runningChildren--;
             }
 
-            //FIXME add error and comment
-            struct sigaction options;
-            options.sa_flags = SA_SIGINFO;
-            options.sa_sigaction = handleChildTime;
-            sigaction(SIGCHLD, &options, NULL);
+            signalChildEnd();
 
             pid = fork();
             if (pid < 0) {
@@ -275,8 +296,7 @@ int main (int argc, char** argv) {
 
     }
 
-    close(fserv);
-    unlink("CircuitRouter-AdvShell.pipe");
+    closePipe(fserv, PIPENAME);
 
     for (int i = 0; i < vector_getSize(children); i++) {
         free(vector_at(children, i));

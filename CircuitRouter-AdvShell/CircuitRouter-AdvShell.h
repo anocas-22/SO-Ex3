@@ -18,5 +18,8 @@ int readPipeArguments(int pipe, char **argVector, int vectorSize, char *buffer, 
 child_t* findChild(int pid);
 void handleChildTime(int sig, siginfo_t *si, void *context);
 void messageClient(char* pipeName, char* message);
+void signalChildEnd();
+int openPipe(char* pipeName);
+void closePipe(int p, char* pipeName);
 
 #endif /* CIRCUITROUTER_SHELL_H */
